@@ -1,14 +1,13 @@
 import streamlit as st
-import numpy as np
-import librosa
-import librosa.display
-import matplotlib.pyplot as plt
-import io
 import svgwrite
-from music21 import stream, note, meter, tempo, metadata
+import requests
 import base64
 import tempfile
-import os
+
+import streamlit.components.v1 as components
+import xml.etree.ElementTree as ET
+
+import music21 as m21
 
 # Optional aubio
 try:
@@ -71,60 +70,111 @@ def local_css():
 
 local_css()
 
-# --------------------------
-# Helpers : f0 detection
-# --------------------------
-def extract_f0_aubio(y, sr, hop_length=512):
-    """
-    Use aubio to extract f0 -> returns times, freqs (Hz) with Nones for unvoiced.
-    """
-    if not AUBIO_AVAILABLE:
-        return None
-    hop_s = hop_length / float(sr)
-    tolerance = 0.8
-    method = "yin"
-    a = aubio.pitch(method, 2048, hop_length, sr)
-    a.set_unit("Hz")
-    a.set_silence(-40)
-    pitches = []
-    confidences = []
-    times = []
-    for i in range(0, len(y), hop_length):
-        frame = y[i:i+hop_length].astype(np.float32)
-        if len(frame) < hop_length:
-            frame = np.pad(frame, (0, hop_length - len(frame)), 'constant')
-        pitch = a(frame)[0]
-        confidence = a.get_confidence()
-        t = (i) / sr
-        if pitch <= 0.0 or confidence < 0.6:
-            pitches.append(np.nan)
-        else:
-            pitches.append(pitch)
-        confidences.append(confidence)
-        times.append(t)
-    return np.array(times), np.array(pitches), np.array(confidences)
 
-def extract_f0_librosa(y, sr, frame_length=2048, hop_length=512):
-    # Use librosa's pyin (if available) for f0 tracking
-    try:
-        f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=40, fmax=1000,
-                                                     sr=sr, frame_length=frame_length, hop_length=hop_length)
-        times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
-        f0 = np.where(voiced_flag, f0, np.nan)
-        return times, f0, voiced_probs
-    except Exception as e:
-        # fallback naive via librosa.yin
-        f0 = librosa.yin(y, fmin=40, fmax=1000, sr=sr, frame_length=frame_length, hop_length=hop_length)
-        times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
-        return times, f0, np.ones_like(f0)
+def parse_musicxml_with_music21(xml_content):
+    """Parse le XML avec music21 et retourne les notes sous forme de liste."""
+    # Sauvegarder le XML dans un fichier temporaire
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_xml:
+        tmp_xml.write(xml_content.encode())
+        tmp_xml_path = tmp_xml.name
 
-def hz_to_note_name(hz):
-    if np.isnan(hz) or hz <= 0:
-        return ("Rest", None)
-    midi = librosa.hz_to_midi(hz)
-    midi_rounded = int(np.round(midi))
-    name = librosa.midi_to_note(midi_rounded)
-    return (name, midi_rounded)
+    # Charger le XML avec music21
+    score = m21.converter.parse(tmp_xml_path)
+    notes = []
+
+    # Extraire les notes
+    for element in score.flat.notes:
+        note_info = {
+            "pitch": f"{element.name[0].lower()}/{element.octave}",
+            "duration": str(element.duration.quarterLength)
+        }
+        notes.append(note_info)
+
+    print(notes)
+    return notes
+
+
+def convert_duration(quarter_length):
+    """Convertit une durée music21 en durée VexFlow."""
+    if quarter_length == 1.0:
+        return "q"  # Noire
+    elif quarter_length == 2.0:
+        return "h"  # Blanche
+    elif quarter_length == 4.0:
+        return "w"  # Ronde
+    elif quarter_length == 0.5:
+        return "4"  # Croche
+    elif quarter_length == 0.25:
+        return "8"  # double Croche
+    elif quarter_length == 0.125:
+        return "16"  # triple croche
+    elif quarter_length == 0.0625:
+        return "32"  # quadruple croche
+    else:
+        return "q"  # Par défaut
+
+
+def prepare_vexflow_data(notes):
+    """Prépare les données des notes pour VexFlow."""
+    vexflow_notes = []
+    for note in notes:
+        pitch = note["pitch"]
+        quarter_length = float(note["duration"])
+        vexflow_duration = convert_duration(quarter_length)
+
+        vexflow_notes.append({
+            "pitch": pitch,
+            "duration": vexflow_duration
+        })
+
+    return vexflow_notes
+
+def vexflow_component(notes):
+    """Affiche une partition avec VexFlow."""
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.91/releases/vexflow-min.js"></script>
+        <style>
+            body { background-color: white; margin: 0; padding: 0; }
+            #output { width: 100%; height: 300px; background-color: white; }
+        </style>
+    </head>
+    <body>
+        <div id="output"></div>
+        <script>
+            function renderVexFlow(notesData) {
+                const div = document.getElementById("output");
+                const renderer = new Vex.Flow.Renderer(div, Vex.Flow.Renderer.Backends.SVG);
+                renderer.resize(1000,300)
+                const ctx = renderer.getContext();
+
+                // Créer une portée
+                const stave = new Vex.Flow.Stave(10, 10, 700);
+                stave.addClef("bass").setContext(ctx).draw();
+
+                // Créer les notes
+                const notes = notesData.map(noteData => {
+                    return new Vex.Flow.StaveNote({
+                        keys: [noteData.pitch],
+                        duration: noteData.duration
+                    });
+                });
+
+                // Formater et dessiner les notes
+                Vex.Flow.Formatter.FormatAndDraw(ctx, stave, notes);
+            }
+
+            const notesData = !NOTES_DATA!;
+            renderVexFlow(notesData);
+        </script>
+    </body>
+    </html>
+    """
+    html = html.replace("!NOTES_DATA!", str(notes).replace("'", '"'))
+    st.components.v1.html(html, height=350)
+
 
 # --------------------------
 # Tablature generator (4-string bass E A D G)
@@ -192,161 +242,70 @@ def generate_tab_svg(midi_seq, filename=None):
         x += step
     return dwg.tostring().encode('utf-8')
 
-# --------------------------
-# MusicXML generator via music21
-# --------------------------
-def generate_musicxml(midi_seq, title="Transcription"):
-    s = stream.Score()
-    s.insert(0, metadata.Metadata())
-    s.metadata.title = title
-    s.metadata.composer = "Databass Transcriber"
-    p = stream.Part()
-    p.append(tempo.MetronomeMark(number=100))
-    p.append(meter.TimeSignature('4/4'))
-    for midi, dur in midi_seq:
-        if midi is None:
-            r = note.Rest(quarterLength=dur)
-            p.append(r)
-        else:
-            n = note.Note()
-            n.pitch.midi = int(midi)
-            n.quarterLength = float(dur)
-            p.append(n)
-    s.append(p)
-    # write to temp file and read bytes
-    tmpf = tempfile.NamedTemporaryFile(delete=False, suffix='.musicxml')
-    s.write('musicxml', fp=tmpf.name)
-    tmpf.close()
-    with open(tmpf.name, 'rb') as f:
-        data = f.read()
-    os.unlink(tmpf.name)
-    return data
+
 
 # --------------------------
 # UI layout
 # --------------------------
 st.title("🎸 Databass — Frequency Transcriber")
-st.markdown("Upload ton fichier audio et transforme le en partition + tablature avec notre juke-box 🎼🔥")
+st.markdown("Upload ton fichier audio et transforme le en partition avec notre juke-box 🎼🔥")
  #visualise le spectre, prédis les notes et exporte MusicXML / TAB.")
 
 
-with st.sidebar:
-    st.header("Paramètres")
-    sr = st.selectbox("Fréquence d'échantillonnage (sr)", options=[22050, 44100, 48000], index=1)
-    hop_length = st.slider("Hop length (samples)", min_value=256, max_value=2048, value=512, step=256)
-    use_aubio = st.checkbox("Utiliser aubio si disponible (meilleur f0 pour basse)", value=AUBIO_AVAILABLE)
-    transposition = st.slider("Transposition (demi-tons) pour basse", -24, 24, 0)
-
-uploaded = st.file_uploader("📤 Dépose un fichier WAV/MP3 ici", type=["wav", "mp3", "m4a"])
+audio_file = st.file_uploader("📤 Dépose un fichier WAV ici", type=["wav"])
 col1, col2 = st.columns([2,3])
 
-if uploaded:
-    # load audio into librosa
-    tf = tempfile.NamedTemporaryFile(delete=False, suffix='.' + uploaded.name.split('.')[-1])
-    tf.write(uploaded.read())
-    tf.flush()
-    y, sr_audio = librosa.load(tf.name, sr=sr)
-    duration = librosa.get_duration(y=y, sr=sr)
-    st.sidebar.write(f"Durée : {duration:.2f}s — Échantillons: {len(y)}")
-    # spectrogram
-    with col1:
-        st.markdown("### 🔊 Spectrogramme")
-        fig, ax = plt.subplots(figsize=(6,3))
-        S = librosa.stft(y, n_fft=2048, hop_length=hop_length)
-        S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max)
-        img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis='time', y_axis='hz', ax=ax)
-        ax.set_title("Spectrogramme")
-        plt.colorbar(img, ax=ax, format="%+2.0f dB")
-        st.pyplot(fig)
+#url = 'https://databass-77430240595.europe-west1.run.app/full_pipeline'
+url = 'http://127.0.0.1:8000/full_pipeline'
 
-    # f0 extraction
-    with st.spinner("Extraction de la fondamentale..."):
-        if use_aubio and AUBIO_AVAILABLE:
-            times, f0s, confs = extract_f0_aubio(y, sr, hop_length=hop_length)
+
+# Sélection du modèle
+model_type = st.selectbox(
+    "Choisir le type de modèle",
+    options=["conv2d", "randforest"],
+    index=0
+)
+
+if audio_file:
+    if st.button("Envoyer"):
+        # Préparer les données pour la requête
+        files = {"file": (audio_file.name, audio_file.read(), audio_file.type)}
+        data = {"model_type": model_type}
+
+        # Envoyer la requête POST
+        response = requests.post(
+            url,
+            files=files,
+            data=data
+        )
+
+        if response.status_code == 200:
+            # Récupérer le contenu XML
+            xml_content = response.text
+
+            # Parser le XML avec music21
+            notes = parse_musicxml_with_music21(xml_content)
+
+            # Préparer les données pour VexFlow
+            vexflow_notes = prepare_vexflow_data(notes)
+
+            # Afficher la partition avec VexFlow
+            if vexflow_notes:
+                vexflow_component(vexflow_notes)
+            else:
+                st.warning("Aucune note à afficher.")
+
+            # Après avoir récupéré xml_content
+            st.download_button(
+                label="Télécharger le XML",
+                data=xml_content,
+                file_name="melody_output.xml",
+                mime="application/xml"
+            )
+
         else:
-            times, f0s, confs = extract_f0_librosa(y, sr, frame_length=2048, hop_length=hop_length)
+            st.error(f"Erreur {response.status_code}: {response.text}")
 
-    # map f0 to note names (and midi)
-    notes = []
-    midi_seq = []
-    for hz in f0s:
-        if np.isnan(hz):
-            notes.append(("Rest", None))
-            midi_seq.append((None, 0.5))
-        else:
-            name, midi = hz_to_note_name(hz)
-            # quantize octaves and basic duration (simple: every frame -> 1/ (sr/hop))
-            notes.append((name, midi))
-            midi_seq.append((midi, 0.5))  # default small dur, we'll re-quantize later
-
-    # Basic length and a slider to step through time
-    st.markdown("### 🎚️ Prévision dynamique des notes")
-    t_index = st.slider("Position (s)", min_value=0.0, max_value=float(duration), value=0.0, step=round(hop_length/sr,3))
-    # find nearest frame
-    nearest_idx = (np.abs(times - t_index)).argmin()
-    cur_hz = f0s[nearest_idx]
-    cur_name, cur_midi = hz_to_note_name(cur_hz)
-
-    col_note, col_conf = st.columns([3,1])
-    with col_note:
-        st.markdown("<div class='note-display'>Note estimée : <strong style='color:#F2CB05'>{}</strong></div>".format(cur_name), unsafe_allow_html=True)
-        st.write(f"Fréquence : {cur_hz:.1f} Hz" if not np.isnan(cur_hz) else "Pas de note détectée")
-    with col_conf:
-        st.metric("Confiance", f"{(confs[nearest_idx]*100):.0f}%" if len(confs)>nearest_idx else "N/A")
-
-    # Show a simple table of times -> notes for the first N frames
-    st.markdown("#### Aperçu (temps → note)")
-    preview = []
-    for i in range(min(40, len(times))):
-        hz = f0s[i]
-        n, m = hz_to_note_name(hz)
-        preview.append((f"{times[i]:.2f}", n))
-    st.table(preview)
-
-    # Simple quantization: merge consecutive same midi to one note with counted frames
-    quant = []
-    prev = (None, None)
-    count = 0
-    for midi, dur in midi_seq:
-        if prev[0] == midi:
-            count += 1
-        else:
-            if prev[0] is not None or count>0:
-                quant.append((prev[0], count))
-            prev = (midi, 1)
-            count = 1
-    quant.append((prev[0], count))
-
-    # Convert counts to quarterLength approximations
-    frame_quarter = (hop_length / sr) / 0.25  # how many frames per quarter note (approx)
-    midi_for_export = []
-    for midi, frames_count in quant:
-        qlen = max(0.25, round((frames_count * (hop_length/sr)) / 0.25) * 0.25)  # quantize to quarter fractions
-        midi_for_export.append((midi, qlen))
-
-    # show downloadable MusicXML and Tab
-    with st.expander("🎼 Export / Téléchargements"):
-        xml_bytes = generate_musicxml(midi_for_export, title="Transcription Databass")
-        st.download_button("⬇️ Télécharger MusicXML", data=xml_bytes, file_name="transcription.musicxml", mime="application/xml")
-
-        svg_bytes = generate_tab_svg([(m if m is not None else None, d) for m,d in midi_for_export])
-        st.download_button("⬇️ Télécharger Tablature (SVG)", data=svg_bytes, file_name="tablature.svg", mime="image/svg+xml")
-
-    # Playback (simple)
-    with st.expander("🔊 Lecture (audio upload)"):
-        st.audio(tf.name, format='audio/wav')
-
-    # Visual timeline: plot note sequence over time
-    with col2:
-        st.markdown("### ⏱️ Timeline des notes détectées")
-        fig2, ax2 = plt.subplots(figsize=(9,3))
-        # convert midi values to pitches for plotting (nan -> 0)
-        midi_plot = np.array([m if m is not None else np.nan for m in [m for (_,m) in notes]])
-        ax2.plot(times, midi_plot, marker='o', linestyle='-', markersize=3)
-        ax2.set_ylabel("MIDI note")
-        ax2.set_xlabel("Time (s)")
-        ax2.set_title("Pitch track (MIDI)")
-        st.pyplot(fig2)
 
 else:
     st.info("Dépose un fichier audio pour commencer. Exemple : ligne de basse monophonique (WAV/MP3).")
