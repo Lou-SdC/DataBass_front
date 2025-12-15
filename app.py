@@ -90,7 +90,6 @@ def parse_musicxml_with_music21(xml_content):
         }
         notes.append(note_info)
 
-    print(notes)
     return notes
 
 
@@ -103,23 +102,28 @@ def convert_duration(quarter_length):
     elif quarter_length == 4.0:
         return "w"  # Ronde
     elif quarter_length == 0.5:
-        return "4"  # Croche
+        return "8"  # Croche
     elif quarter_length == 0.25:
-        return "8"  # double Croche
+        return "16"  # double Croche
     elif quarter_length == 0.125:
-        return "16"  # triple croche
+        return "32"  # triple croche
     elif quarter_length == 0.0625:
-        return "32"  # quadruple croche
+        return "64"  # quadruple croche
     else:
         return "q"  # Par défaut
 
 
 def prepare_vexflow_data(notes):
-    """Prépare les données des notes pour VexFlow."""
+    """Prépare les données pour VexFlow en filtrant les notes trop courtes."""
     vexflow_notes = []
     for note in notes:
         pitch = note["pitch"]
         quarter_length = float(note["duration"])
+
+        # Ignorer les notes trop courtes (ex: quadruples croches)
+        if quarter_length < 0.125:  # Seuil pour les quadruples croches
+            continue
+
         vexflow_duration = convert_duration(quarter_length)
 
         vexflow_notes.append({
