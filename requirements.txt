@@ -1,3 +1,4 @@
 streamlit
 svgwrite
 music21
+audio
