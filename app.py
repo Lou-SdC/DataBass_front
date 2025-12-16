@@ -392,14 +392,58 @@ with main_col:
         signature = hashlib.md5(file_bytes).hexdigest()
 
         if st.session_state.get("last_file_signature") != signature:
+            loading_placeholder = st.empty()
+            loading_placeholder.markdown("""
+            <div style="display:flex;justify-content:center;margin:24px 0;">
+                <svg width="320" height="200" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <radialGradient id="bgGlow" cx="50%" cy="50%" r="65%">
+                            <stop offset="0%" stop-color="rgba(0,224,255,0.45)"/>
+                            <stop offset="70%" stop-color="rgba(15,25,55,0.05)"/>
+                            <stop offset="100%" stop-color="rgba(7,12,30,0)"/>
+                        </radialGradient>
+                        <linearGradient id="neckGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#7DF9FF"/>
+                            <stop offset="50%" stop-color="#6F3FFF"/>
+                            <stop offset="100%" stop-color="#00FFC6"/>
+                        </linearGradient>
+                        <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <rect x="0" y="0" width="320" height="200" fill="url(#bgGlow)" opacity="0.55"/>
+                    <g filter="url(#neonGlow)">
+                        <path d="M70 130 C40 100 40 60 80 50 C110 45 130 70 150 70 C180 72 210 40 210 22 C230 26 250 36 252 54 C238 74 236 90 246 104 C232 118 216 132 190 132 C170 128 156 118 140 110 C118 118 106 140 102 158 C92 162 78 152 70 130Z"
+                              fill="none" stroke="url(#neckGlow)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M196 28 L220 12" stroke="#7DF9FF" stroke-width="5" stroke-linecap="round">
+                            <animate attributeName="stroke-width" values="5;8;5" dur="1.4s" repeatCount="indefinite"/>
+                        </path>
+                        <circle cx="245" cy="104" r="10" fill="rgba(111,63,255,0.65)">
+                            <animate attributeName="r" values="10;16;10" dur="1.6s" repeatCount="indefinite"/>
+                            <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.6s" repeatCount="indefinite"/>
+                        </circle>
+                        <polyline points="250,46 262,36 257,60 270,52"
+                                  fill="none" stroke="#00FFC6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <animate attributeName="stroke-opacity" values="0.2;1;0.2" dur="1s" repeatCount="indefinite"/>
+                        </polyline>
+                        <path d="M82 52 Q120 44 150 70" stroke="#00FFC6" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 12">
+                            <animate attributeName="stroke-dashoffset" values="0;-40" dur="2s" repeatCount="indefinite"/>
+                        </path>
+                    </g>
+                </svg>
+            </div>
+            """, unsafe_allow_html=True)
             try:
-                with st.spinner("Analyse en cours…"):
-                    response = requests.post(
-                        url,
-                        files={"file": (audio_file.name, file_bytes, audio_file.type or "audio/wav")},
-                        data={"model_type": "conv2d"}
-                    )
-                    response.raise_for_status()
+                response = requests.post(
+                    url,
+                    files={"file": (audio_file.name, file_bytes, audio_file.type or "audio/wav")},
+                    data={"model_type": "conv2d"}
+                )
+                response.raise_for_status()
             except requests.RequestException as exc:
                 st.session_state.update({
                     "transcription_error": f"Erreur lors de l'appel API: {exc}",
@@ -410,15 +454,10 @@ with main_col:
                 })
             else:
                 xml_content = response.text
-                # mannual parsing to vexflow notes
                 html_content = vexflow_component(
                     xml_content,
                     notes_per_line=20
                 )
-
-                # using music21j
-                # print(xml_content)
-                # html_content = build_music21j_html(xml_content)
                 st.session_state.update({
                     "last_file_signature": signature,
                     "xml_content": xml_content,
@@ -426,6 +465,8 @@ with main_col:
                     "vexflow_notes": None,
                     "transcription_error": None,
                 })
+            finally:
+                loading_placeholder.empty()
     else:
         st.session_state.update({
             "last_file_signature": None,
