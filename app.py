@@ -108,6 +108,263 @@ def local_css():
 
 local_css()
 
+
+def parse_musicxml_with_music21(xml_content):
+    """Parse le XML avec music21 et retourne les notes sous forme de liste."""
+    # Sauvegarder le XML dans un fichier temporaire
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp_xml:
+        tmp_xml.write(xml_content.encode())
+        tmp_xml_path = tmp_xml.name
+
+    # Charger le XML avec music21
+    score = m21.converter.parse(tmp_xml_path)
+    notes = []
+
+    # Extraire les notes
+    for element in score.flat.notes:
+        pitch = str(element.pitch)
+        # Extraire la lettre de la note (ex: 'D' ou 'D#')
+        note_letter = pitch[:-1]
+        # Extraire l'octave (ex: '2')
+        octave = str(int(pitch[-1]) + 2)
+
+        # Convertir la lettre en minuscule et ajouter le slash (ex: 'd#/2')
+        pitch_vexflow = f"{note_letter}/{octave}"
+        note_info = {
+            "pitch": pitch_vexflow,
+            "quarterLength": element.duration.quarterLength,
+            "vexDuration": convert_duration(element.duration.quarterLength),
+            "beat": element.beat,
+            "measure": element.measureNumber
+        }
+        notes.append(note_info)
+
+    return notes
+
+
+def convert_duration(quarter_length):
+    """Convertit une durée music21 en durée VexFlow."""
+    if quarter_length == 1.0:
+        return "q"  # Noire
+    elif quarter_length == 2.0:
+        return "h"  # Blanche
+    elif quarter_length == 4.0:
+        return "w"  # Ronde
+    elif quarter_length == 0.5:
+        return "8"  # Croche
+    elif quarter_length == 0.25:
+        return "16"  # double Croche
+    elif quarter_length == 0.125:
+        return "32"  # triple croche
+    elif quarter_length == 0.0625:
+        return "64"  # quadruple croche
+    else:
+        return "q"  # Par défaut
+
+
+def prepare_vexflow_data(xml_content):
+    notes = parse_musicxml_with_music21(xml_content)
+    vexflow_notes = []
+
+    for note in notes:
+        quarter_length = note["quarterLength"]
+
+        # ignorer les durées trop courtes si tu veux
+        if quarter_length < 0.125:
+            continue
+
+        vexflow_notes.append({
+            "pitch": note["pitch"],
+            "duration": note["vexDuration"],
+            "beat": note["beat"],
+            "measure": note["measure"]
+        })
+
+    return vexflow_notes
+
+
+
+def vexflow_component(xml, notes_per_line=20):
+    notes = prepare_vexflow_data(xml)
+    total_lines = max(1, (len(notes) + notes_per_line - 1) // notes_per_line)
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Roboto:wght@300;500&display=swap" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.91/releases/vexflow-min.js"></script>
+        <style>
+            :root {{
+                color-scheme: dark;
+            }}
+            html {{
+                height: 100%;
+            }}
+            body {{
+                height: 93%;
+                width: 94%;
+                margin: 0;
+                padding: 24px;
+                padding-bottom: 0;
+                font-family: 'Roboto', sans-serif;
+                color: #E6EEFF;
+                border-radius: 18px;
+                background: linear-gradient(135deg, rgba(18,32,64,0.88), rgba(9,16,38,0.92));
+                border: 1px solid rgba(125,249,255,0.25);
+                box-shadow: 0 26px 50px rgba(0,0,0,0.55), 0 0 28px rgba(111,63,255,0.35), inset 0 0 18px rgba(0,224,255,0.12);
+
+            }}
+            .score-header {{
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 16px;
+                color: #9AAAE0;
+                text-transform: uppercase;
+                letter-spacing: 0.12em;
+                font-size: 0.75rem;
+            }}
+            .score-header::before {{
+                content: "";
+                width: 36px;
+                height: 2px;
+                background: linear-gradient(90deg, rgba(0,224,255,0.7), rgba(111,63,255,0.25));
+            }}
+            #output {{
+                width: 100%;
+                min-height: 240px;
+                border-radius: 14px;
+                overflow: hidden;
+            }}
+            #output svg {{
+                background: radial-gradient(circle at 20% 20%, rgba(16,26,56,0.95), rgba(7,12,30,0.92));
+                border-radius: 14px;
+                box-shadow: inset 0 0 30px rgba(0,224,255,0.18);
+            }}
+        </style>
+    </head>
+    <body>
+            <div class="score-header">AI Partition</div>
+            <div id="output"></div>
+        <script>
+            const neonAccent = "#7DF9FF";
+            const neonBeam = "rgba(111,63,255,0.65)";
+
+            function createBeams(notes, notesData) {{
+                const beams = [];
+                let group = [];
+                for (let i = 0; i < notes.length; i++) {{
+                    const current = notesData[i];
+                    const prev = notesData[i - 1];
+                    const beamable = ["8", "16", "32"].includes(current.duration);
+                    const newGroup = !prev || current.measure !== prev.measure || Math.floor(current.beat) !== Math.floor(prev.beat);
+                    if (!beamable || newGroup) {{
+                        if (group.length > 1) {{
+                            beams.push(new Vex.Flow.Beam(group));
+                        }}
+                        group = beamable ? [notes[i]] : [];
+                    }} else {{
+                        group.push(notes[i]);
+                    }}
+                }}
+                if (group.length > 1) {{
+                    beams.push(new Vex.Flow.Beam(group));
+                }}
+                beams.forEach(beam => {{
+                    beam.render_options.fill_style = neonBeam;
+                    beam.render_options.stroke_style = neonBeam;
+                    beam.render_options.shadow_color = "rgba(0,224,255,0.35)";
+                    beam.render_options.shadow_blur = 6;
+                }});
+                return beams;
+            }}
+
+            function renderVexFlow(notesData, notesPerLine) {{
+                const div = document.getElementById("output");
+                div.innerHTML = "";
+                const totalLines = Math.max(1, Math.ceil(notesData.length / notesPerLine));
+                const renderer = new Vex.Flow.Renderer(div, Vex.Flow.Renderer.Backends.SVG);
+                renderer.resize(960, 220 * totalLines);
+                const ctx = renderer.getContext();
+                ctx.setFont("14px 'Roboto'", 14, "");
+                ctx.setFillStyle("#E6EEFF");
+
+                for (let lineIndex = 0; lineIndex < totalLines; lineIndex++) {{
+                    const start = lineIndex * notesPerLine;
+                    const slice = notesData.slice(start, start + notesPerLine);
+                    const y = 30 + lineIndex * 160;
+
+                    ctx.save();
+                    ctx.setStrokeStyle("rgba(125,249,255,0.35)");
+                    const stave = new Vex.Flow.Stave(20, y, 900);
+                    stave.addClef("bass").setContext(ctx).draw();
+                    ctx.restore();
+
+                    const vexNotes = slice.map(noteData => {{
+                        const note = new Vex.Flow.StaveNote({{
+                            keys: [noteData.pitch],
+                            duration: noteData.duration
+                        }});
+                        note.setStyle({{
+                            fillStyle: neonAccent,
+                            strokeStyle: neonAccent
+                        }});
+                        if (noteData.pitch.includes("#")) {{
+                            const accidental = new Vex.Flow.Accidental("#");
+                            accidental.setStyle({{ fillStyle: neonAccent, strokeStyle: neonAccent }});
+                            note.addAccidental(0, accidental);
+                        }}
+                        return note;
+                    }});
+
+                    const beams = createBeams(vexNotes, slice);
+                    Vex.Flow.Formatter.FormatAndDraw(ctx, stave, vexNotes);
+                    beams.forEach(beam => beam.setContext(ctx).draw());
+                }}
+            }}
+
+            renderVexFlow({notes}, {notes_per_line});
+        </script>
+    </body>
+    </html>
+    """
+    st.components.v1.html(html, height=240 * total_lines + 160)
+
+
+def build_music21j_html(xml_content: str) -> str:
+    encoded_xml = base64.b64encode(xml_content.encode("utf-8")).decode("utf-8")
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<style>
+    html {{ background: transparent; }}
+    body {{ margin: 0; background: transparent; }}
+    #score {{ padding: 12px; }}
+</style>
+<script>
+    window.m21conf = {{ loadSoundfont: false }};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/music21j/releases/music21.debug.min.js"></script>
+</head>
+    <body>
+        <div id="score"></div>
+        <script>
+            const xmlString = atob("{encoded_xml}");
+            const target = document.getElementById("score");
+            target.innerHTML = "<p style='color:#9AAAE0;font-family:Roboto,sans-serif;'>Chargement de la partition…</p>";
+            sp = new music21.musicxml.xmlToM21.ScoreParser();
+            score = sp.scoreFromText(xmlString);
+            target.innerHTML = "";
+            score.appendNewDOM(target);
+        </script>
+    </body>
+</html>
+"""
+
 # --------------------------
 # UI layout
 # --------------------------
@@ -153,8 +410,15 @@ with main_col:
                 })
             else:
                 xml_content = response.text
-                print(xml_content)
-                html_content = build_music21j_html(xml_content)
+                # mannual parsing to vexflow notes
+                html_content = vexflow_component(
+                    xml_content,
+                    notes_per_line=20
+                )
+
+                # using music21j
+                # print(xml_content)
+                # html_content = build_music21j_html(xml_content)
                 st.session_state.update({
                     "last_file_signature": signature,
                     "xml_content": xml_content,
@@ -162,20 +426,6 @@ with main_col:
                     "vexflow_notes": None,
                     "transcription_error": None,
                 })
-        if st.session_state.get("transcription_error"):
-            st.error(st.session_state["transcription_error"])
-        else:
-            if st.session_state.get("vexflow_html"):
-                components.html(st.session_state["vexflow_html"], height=520, scrolling=False)
-            else:
-                st.warning("Aucune note à afficher.")
-            if st.session_state.get("xml_content"):
-                st.download_button(
-                    label="Télécharger le XML",
-                    data=st.session_state["xml_content"],
-                    file_name="melody_output.xml",
-                    mime="application/xml"
-                )
     else:
         st.session_state.update({
             "last_file_signature": None,
