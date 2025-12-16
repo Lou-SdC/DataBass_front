@@ -168,12 +168,10 @@ def vexflow_component(notes, notes_per_line=20):
     <body>
         <div id="output"></div>
         <script>
-            // Vérifie si une note est beamable (croche, double, triple)
             function isBeamable(noteData) {{
                 return ["8", "16", "32"].includes(noteData.duration);
             }}
 
-            // Crée les beams par temps métrique
             function createBeams(notes, notesData) {{
                 const beams = [];
                 let group = [];
@@ -181,10 +179,7 @@ def vexflow_component(notes, notes_per_line=20):
                 for (let i = 0; i < notes.length; i++) {{
                     const current = notesData[i];
                     const prev = notesData[i - 1];
-
                     const beamable = ["8", "16", "32"].includes(current.duration);
-
-                    // Nouveau groupe si mesure ou temps changé
                     const newGroup =
                         !prev ||
                         current.measure !== prev.measure ||
@@ -210,35 +205,38 @@ def vexflow_component(notes, notes_per_line=20):
             function renderVexFlow(notesData, notesPerLine) {{
                 const div = document.getElementById("output");
                 const renderer = new Vex.Flow.Renderer(div, Vex.Flow.Renderer.Backends.SVG);
-                renderer.resize(1000, 300);
+                renderer.resize(1000, 300 * Math.ceil(notesData.length / notesPerLine));
                 const ctx = renderer.getContext();
 
-                const stave = new Vex.Flow.Stave(10, 40, 900);
-                stave.addClef("bass").setContext(ctx).draw();
+                // Découpe les notes en groupes pour chaque ligne
+                for (let i = 0; i < notesData.length; i += notesPerLine) {{
+                    const group = notesData.slice(i, i + notesPerLine);
+                    const y = 20 + (i / notesPerLine) * 120;
 
-                // Créer les StaveNotes
-                const vexNotes = notesData.map(noteData => {{
-                    const note = new Vex.Flow.StaveNote({{
-                        keys: [noteData.pitch],
-                        duration: noteData.duration
+                    const stave = new Vex.Flow.Stave(10, y, 900);
+                    stave.addClef("bass").setContext(ctx).draw();
+
+                    const vexNotes = group.map(noteData => {{
+                        const note = new Vex.Flow.StaveNote({{
+                            keys: [noteData.pitch],
+                            duration: noteData.duration
+                        }});
+                        if (noteData.pitch.includes('#')) {{
+                            note.addAccidental(0, new Vex.Flow.Accidental('#'));
+                        }}
+                        return note;
                     }});
 
-                    if (noteData.pitch.includes('#')) {{
-                        note.addAccidental(0, new Vex.Flow.Accidental('#'));
-                    }}
-                    return note;
-                }});
+                    const beams = createBeams(vexNotes, group);
 
-                // Créer les beams
-                const beams = createBeams(vexNotes, notesData);
+                    // Formatter et dessiner les notes
+                    Vex.Flow.Formatter.FormatAndDraw(ctx, stave, vexNotes);
 
-                // Formatter et dessiner les notes
-                Vex.Flow.Formatter.FormatAndDraw(ctx, stave, vexNotes);
-
-                // Dessiner les beams par-dessus
-                beams.forEach(beam => {{
-                    beam.setContext(ctx).draw();
-                }});
+                    // Dessiner les beams par-dessus
+                    beams.forEach(beam => {{
+                        beam.setContext(ctx).draw();
+                    }});
+                }}
             }}
 
             renderVexFlow({notes}, {notes_per_line});
@@ -246,7 +244,8 @@ def vexflow_component(notes, notes_per_line=20):
     </body>
     </html>
     """
-    st.components.v1.html(html, height=300)
+    st.components.v1.html(html, height=350 * (1 + len(notes) // notes_per_line))
+
 
 
 
