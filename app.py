@@ -472,8 +472,8 @@ with main_col:
         type=["wav"],
         label_visibility="collapsed"
         )
-    # url = 'https://databass-77430240595.europe-west1.run.app/full_pipeline_xml'
-    url = 'http://127.0.0.1:8080/full_pipeline_xml'
+    url = 'https://databass-77430240595.europe-west1.run.app/full_pipeline_xml'
+    # url = 'http://127.0.0.1:8080/full_pipeline_xml'
     if audio_file:
         file_bytes = audio_file.getvalue()
         signature = hashlib.md5(file_bytes).hexdigest()
