@@ -60,18 +60,93 @@ def local_css():
         font-size: 1.05rem;
         margin: 0;
     }
-    .stFileUploader {
-        background: linear-gradient(135deg, rgba(12,18,42,0.85), rgba(8,12,32,0.85));
-        border-radius: 16px;
-        padding: 18px;
+
+    /* File Uploader Styling */
+    .upload-section {
+        padding: 32px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(18,32,64,0.7), rgba(9,16,38,0.85));
+        border: 2px dashed rgba(125,249,255,0.3);
+        box-shadow: 0 16px 35px rgba(0,0,0,0.45), 0 0 25px rgba(111,63,255,0.25), inset 0 0 20px rgba(0,224,255,0.08);
+        margin-bottom: 28px;
+        transition: all 0.3s ease;
+    }
+    .upload-section:hover {
+        border-color: rgba(125,249,255,0.5);
+        box-shadow: 0 20px 45px rgba(0,0,0,0.55), 0 0 35px rgba(111,63,255,0.4), inset 0 0 25px rgba(0,224,255,0.12);
+        transform: translateY(-2px);
+    }
+    .upload-label {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.1rem;
+
+        text-shadow: 0 0 8px rgba(125,249,255,0.5);
+        margin-bottom: 12px;
+        display: block;
+        letter-spacing: 0.08em;
+    }
+    .upload-hint {
+        font-size: 0.9rem;
+        margin-top: 8px;
+        opacity: 0.85;
+    }
+
+    [data-testid="stFileUploader"] {
+        background: transparent;
+    }
+    [data-testid="stFileUploader"] > div {
+        background: transparent;
+        border: none;
+        padding: 0;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] div span {
+       color: rgb(255,255,255) !important;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"]>span>svg>path {
+        color: #7DF9FF !important;
+    }
+    .stFileUploaderFileName {
+        color: #FFFFFF !important;
+    }
+    .stFileUploaderFileData>small {
+        color: #B4C5FF !important;
+    }
+    .stFileUploaderFile>div>svg>path {
+        color: #7DF9FF !important;
+    }
+    [data-testid="stFileUploader"] section {
+        background: linear-gradient(135deg, rgba(30,50,95,0.5), rgba(15,25,50,0.6));
         border: 1px solid rgba(125,249,255,0.25);
-        box-shadow: inset 0 0 18px rgba(0,224,255,0.12);
-        margin-bottom: 20px;
+        border-radius: 14px;
+        padding: 28px;
+        box-shadow: inset 0 0 15px rgba(0,224,255,0.1);
+        transition: all 0.25s ease;
     }
-    .stFileUploader label {
-        color: #E6EEFF !important;
-        font-weight: 500;
+    [data-testid="stFileUploader"] section:hover {
+        background: linear-gradient(135deg, rgba(35,55,105,0.6), rgba(18,28,58,0.7));
+        border-color: rgba(125,249,255,0.45);
+        box-shadow: inset 0 0 20px rgba(0,224,255,0.15), 0 0 15px rgba(111,63,255,0.3);
     }
+    [data-testid="stFileUploader"] section button {
+        background: linear-gradient(135deg, rgba(111,63,255,0.85), rgba(0,224,255,0.75));
+        border: none;
+        border-radius: 12px;
+        padding: 12px 28px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        letter-spacing: 0.05em;
+        box-shadow: 0 8px 20px rgba(0,224,255,0.3);
+        transition: all 0.2s ease;
+    }
+    [data-testid="stFileUploader"] section button:hover {
+        background: linear-gradient(135deg, rgba(125,75,255,0.95), rgba(0,240,255,0.85));
+        box-shadow: 0 12px 28px rgba(111,63,255,0.4);
+        transform: translateY(-1px);
+    }
+    [data-testid="stFileUploader"] small {
+        font-size: 0.85rem;
+    }
+
     .stButton>button {
         background: linear-gradient(135deg, #6F3FFF, #00E0FF);
         color: #050A18;
@@ -377,16 +452,28 @@ with main_col:
         """
         <div class="hero-section">
             <h1>Databass — Frequency Analyser</h1>
-            <p>Upload a WAV bass line, let the AI transcribe it, and preview the score in real time.</p>
+            <p>Upload a WAV bass line, let the AI transcribe it, and see the music sheet.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    audio_file = st.file_uploader("", type=["wav"])
+    # st.markdown(
+    #     """
+    #     <div class="upload-section">
+    #         <span class="upload-label">📡 Upload Audio File</span>
+    #         <div class="upload-hint">Drop your WAV file here or browse to select</div>
+    #     </div>
+    #     """,
+    #     unsafe_allow_html=True,
+    # )
+    audio_file = st.file_uploader(
+        "",
+        type=["wav"],
+        label_visibility="collapsed"
+        )
     # url = 'https://databass-77430240595.europe-west1.run.app/full_pipeline_xml'
     url = 'http://127.0.0.1:8080/full_pipeline_xml'
-
     if audio_file:
         file_bytes = audio_file.getvalue()
         signature = hashlib.md5(file_bytes).hexdigest()
@@ -394,46 +481,89 @@ with main_col:
         if st.session_state.get("last_file_signature") != signature:
             loading_placeholder = st.empty()
             loading_placeholder.markdown("""
-            <div style="display:flex;justify-content:center;margin:24px 0;">
-                <svg width="320" height="200" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <radialGradient id="bgGlow" cx="50%" cy="50%" r="65%">
-                            <stop offset="0%" stop-color="rgba(0,224,255,0.45)"/>
-                            <stop offset="70%" stop-color="rgba(15,25,55,0.05)"/>
-                            <stop offset="100%" stop-color="rgba(7,12,30,0)"/>
-                        </radialGradient>
-                        <linearGradient id="neckGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stop-color="#7DF9FF"/>
-                            <stop offset="50%" stop-color="#6F3FFF"/>
-                            <stop offset="100%" stop-color="#00FFC6"/>
-                        </linearGradient>
-                        <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
-                            <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                            <feMerge>
-                                <feMergeNode in="coloredBlur"/>
-                                <feMergeNode in="SourceGraphic"/>
-                            </feMerge>
-                        </filter>
-                    </defs>
-                    <rect x="0" y="0" width="320" height="200" fill="url(#bgGlow)" opacity="0.55"/>
-                    <g filter="url(#neonGlow)">
-                        <path d="M70 130 C40 100 40 60 80 50 C110 45 130 70 150 70 C180 72 210 40 210 22 C230 26 250 36 252 54 C238 74 236 90 246 104 C232 118 216 132 190 132 C170 128 156 118 140 110 C118 118 106 140 102 158 C92 162 78 152 70 130Z"
-                              fill="none" stroke="url(#neckGlow)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M196 28 L220 12" stroke="#7DF9FF" stroke-width="5" stroke-linecap="round">
-                            <animate attributeName="stroke-width" values="5;8;5" dur="1.4s" repeatCount="indefinite"/>
-                        </path>
-                        <circle cx="245" cy="104" r="10" fill="rgba(111,63,255,0.65)">
-                            <animate attributeName="r" values="10;16;10" dur="1.6s" repeatCount="indefinite"/>
-                            <animate attributeName="opacity" values="0.8;0.4;0.8" dur="1.6s" repeatCount="indefinite"/>
-                        </circle>
-                        <polyline points="250,46 262,36 257,60 270,52"
-                                  fill="none" stroke="#00FFC6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                            <animate attributeName="stroke-opacity" values="0.2;1;0.2" dur="1s" repeatCount="indefinite"/>
-                        </polyline>
-                        <path d="M82 52 Q120 44 150 70" stroke="#00FFC6" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 12">
-                            <animate attributeName="stroke-dashoffset" values="0;-40" dur="2s" repeatCount="indefinite"/>
-                        </path>
-                    </g>
+            <div style="display:flex;justify-content:center;margin:32px 0;">
+                <?xml version="1.0" encoding="utf-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 400.847 274.46" width="400.847px" height="274.46px">
+                <defs>
+                    <radialGradient id="bgGlow" cx="50%" cy="50%" r="70%">
+                    <stop offset="0" stop-color="rgba(0,224,255,0.3)"/>
+                    <stop offset="1" stop-color="rgba(7,12,30,0)"/>
+                    </radialGradient>
+                    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0" stop-color="rgba(30,50,95,0.9)"/>
+                    <stop offset="1" stop-color="rgba(15,25,50,0.95)"/>
+                    </linearGradient>
+                    <linearGradient id="neckGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0" stop-color="rgba(20,35,70,0.95)"/>
+                    <stop offset="1" stop-color="rgba(25,40,80,0.9)"/>
+                    </linearGradient>
+                    <filter id="strongGlow" x="-150%" y="-150%" width="400%" height="400%">
+                    <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                    </filter>
+                    <filter id="neonGlow" x="-100%" y="-100%" width="300%" height="300%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                    </filter>
+                </defs>
+                <ellipse cx="201.576" cy="137.953" rx="197.271" ry="131.194" fill="url(#bgGlow)" opacity="0.6" style=""/>
+                <path d="M 87.555 91.079 C 69.085 65.242 24.102 91.944 25.498 145.586 C 26.895 199.229 52.845 222.094 110.482 188.404 C 128.026 174.696 139.145 193.858 155.095 192.329 C 171.45 190.761 123.917 166.53 138.373 161.148 C 165.992 150.865 144.018 147.795 142.882 140.987 C 142.312 137.57 139.157 141.692 146.43 121.977 C 146.02 111.635 187.588 101.008 190.782 93.706 C 191.682 91.649 180.92 73.871 145.537 91.998 C 126.214 101.897 95.666 102.427 87.555 91.079 Z" fill="url(#bodyGrad)" stroke="rgba(125,249,255,0.4)" stroke-width="2" style=""/>
+                <ellipse cx="95.166" cy="141.33" rx="42.896" ry="27.94" fill="rgba(125,249,255,0.08)" style=""/>
+                <rect x="137.913" y="125.731" width="210.835" height="30.73" fill="url(#neckGrad)" stroke="rgba(125,249,255,0.3)" stroke-width="1.5" style="" rx="2.731" ry="2.731"/>
+                <line x1="230" y1="125" x2="230" y2="155" stroke="rgba(180,200,255,0.3)" stroke-width="1"/>
+                <line x1="255" y1="125" x2="255" y2="155" stroke="rgba(180,200,255,0.3)" stroke-width="1"/>
+                <line x1="280" y1="125" x2="280" y2="155" stroke="rgba(180,200,255,0.3)" stroke-width="1"/>
+                <line x1="305" y1="125" x2="305" y2="155" stroke="rgba(180,200,255,0.3)" stroke-width="1"/>
+                <path d="M 346.8 125.73 L 371.8 120.73 L 376.8 135.73 L 376.8 145.73 L 371.8 160.73 L 346.8 155.73 L 346.8 125.73 Z" fill="url(#neckGrad)" stroke="rgba(125,249,255,0.35)" stroke-width="1.5"/>
+                <circle cx="368.991" cy="126.296" r="3" fill="#7DF9FF" opacity="0.7" style="" transform="matrix(1.096662998199463, 0, 0, 1, -35.957950592041016, 0)"/>
+                <circle cx="368.991" cy="136.296" r="3" fill="#7DF9FF" opacity="0.7" style="" transform="matrix(1.096662998199463, 0, 0, 1, -35.957950592041016, 0)"/>
+                <circle cx="368.991" cy="146.296" r="3" fill="#7DF9FF" opacity="0.7" style="" transform="matrix(1.096662998199463, 0, 0, 1, -35.957950592041016, 0)"/>
+                <circle cx="368.991" cy="156.296" r="3" fill="#7DF9FF" opacity="0.7" style="" transform="matrix(1.096662998199463, 0, 0, 1, -35.957950592041016, 0)"/>
+                <g filter="url(#strongGlow)" style="transform-origin: 272.5px 143px 0px;" transform="matrix(1.99358702, -0.018417, 0.008984, 0.99996597, -67.71453478, -0.2904197)">
+                    <line x1="190" y1="130" x2="355" y2="128" stroke="#7DF9FF" stroke-width="0.8" opacity="0.9">
+                    <animate attributeName="opacity" values="0.6;1;0.6" dur="1.5s" repeatCount="indefinite"/>
+                    </line>
+                    <line x1="190" y1="137" x2="355" y2="138" stroke="#6F3FFF" stroke-width="0.8" opacity="0.85">
+                    <animate attributeName="opacity" values="0.5;1;0.5" dur="1.8s" repeatCount="indefinite"/>
+                    </line>
+                    <line x1="190" y1="144" x2="355" y2="148" stroke="#00FFC6" stroke-width="0.8" opacity="0.9">
+                    <animate attributeName="opacity" values="0.6;1;0.6" dur="2.1s" repeatCount="indefinite"/>
+                    </line>
+                    <line x1="190" y1="151" x2="355" y2="158" stroke="#00E0FF" stroke-width="0.8" opacity="0.85">
+                    <animate attributeName="opacity" values="0.5;1;0.5" dur="1.6s" repeatCount="indefinite"/>
+                    </line>
+                </g>
+                <rect x="33.766" y="125.184" width="20" height="34.991" rx="2" fill="rgba(111,63,255,0.4)" stroke="rgba(125,249,255,0.5)" stroke-width="1" style=""/>
+                <rect x="69.591" y="125.322" width="8" height="32" rx="1" fill="rgba(125,249,255,0.3)" stroke="rgba(125,249,255,0.6)" stroke-width="1"/>
+                <g filter="url(#neonGlow)">
+                    <circle r="2" fill="#7DF9FF">
+                    <animateMotion dur="2s" repeatCount="indefinite" path="M 190 130 L 355 128"/>
+                    </circle>
+                    <circle r="2" fill="#6F3FFF">
+                    <animateMotion dur="2.5s" repeatCount="indefinite" path="M 190 137 L 355 138"/>
+                    </circle>
+                    <circle r="2" fill="#00FFC6">
+                    <animateMotion dur="2.2s" repeatCount="indefinite" path="M 190 144 L 355 148"/>
+                    </circle>
+                    <circle r="2" fill="#00E0FF">
+                    <animateMotion dur="1.8s" repeatCount="indefinite" path="M 190 151 L 355 158"/>
+                    </circle>
+                </g>
+                <text x="159.701" y="190.66" font-family="'Orbitron', sans-serif" font-size="16" fill="#7DF9FF" text-anchor="middle" letter-spacing="2" style="white-space: pre;">
+                                TRANSCRIBING
+                                <animate attributeName="opacity" values="0.5;1;0.5" dur="1.5s" repeatCount="indefinite"/>
+                            </text>
+                <text x="185.607" y="217.138" font-family="'Roboto', sans-serif" font-size="12" fill="#9AAAE0" text-anchor="middle" opacity="0.8" style="white-space: pre;">
+                                AI analyzing your bass line...
+                            </text>
+                <rect x="115.549" y="124.731" width="8" height="32" rx="1" fill="rgba(125,249,255,0.3)" stroke="rgba(125,249,255,0.6)" stroke-width="1" style="stroke-width: 1px;"/>
                 </svg>
             </div>
             """, unsafe_allow_html=True)
