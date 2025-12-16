@@ -93,8 +93,11 @@ def parse_musicxml_with_music21(xml_content):
         # Convertir la lettre en minuscule et ajouter le slash (ex: 'd#/2')
         pitch_vexflow = f"{note_letter}/{octave}"
         note_info = {
-            "pitch": f"{pitch_vexflow}",
-            "duration": str(element.duration.quarterLength)
+            "pitch": pitch_vexflow,
+            "quarterLength": element.duration.quarterLength,
+            "vexDuration": convert_duration(element.duration.quarterLength),
+            "beat": element.beat,
+            "measure": element.measureNumber
         }
         notes.append(note_info)
 
@@ -122,81 +125,129 @@ def convert_duration(quarter_length):
 
 
 def prepare_vexflow_data(notes):
-    """Prépare les données pour VexFlow en filtrant les notes trop courtes."""
     vexflow_notes = []
-    for note in notes:
-        pitch = note["pitch"]
-        quarter_length = float(note["duration"])
 
-        # Ignorer les notes trop courtes (ex: quadruples croches)
-        if quarter_length < 0.125:  # Seuil pour les quadruples croches
+    for note in notes:
+        quarter_length = note["quarterLength"]
+
+        # ignorer les durées trop courtes si tu veux
+        if quarter_length < 0.125:
             continue
 
-        vexflow_duration = convert_duration(quarter_length)
-
         vexflow_notes.append({
-            "pitch": pitch,
-            "duration": vexflow_duration
+            "pitch": note["pitch"],
+            "duration": note["vexDuration"],
+            "beat": note["beat"],
+            "measure": note["measure"]
         })
-    print(vexflow_notes)
+
     return vexflow_notes
 
-def vexflow_component(notes):
-    """Affiche une partition avec VexFlow, en gérant correctement les dièses."""
+
+
+def vexflow_component(notes, notes_per_line=20):
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.91/releases/vexflow-min.js"></script>
         <style>
-            body {{ background-color: white; margin: 0; padding: 0; }}
-            #output {{ width: 100%; height: 300px; background-color: white; }}
+            body {{
+                background-color: white;
+                margin: 0;
+                padding: 0;
+            }}
+            #output {{
+                background-color: white;
+            }}
+            svg {{
+                background-color: white;
+            }}
         </style>
     </head>
     <body>
         <div id="output"></div>
         <script>
-            function renderVexFlow(notesData) {{
+            // Vérifie si une note est beamable (croche, double, triple)
+            function isBeamable(noteData) {{
+                return ["8", "16", "32"].includes(noteData.duration);
+            }}
+
+            // Crée les beams par temps métrique
+            function createBeams(notes, notesData) {{
+                const beams = [];
+                let group = [];
+
+                for (let i = 0; i < notes.length; i++) {{
+                    const current = notesData[i];
+                    const prev = notesData[i - 1];
+
+                    const beamable = ["8", "16", "32"].includes(current.duration);
+
+                    // Nouveau groupe si mesure ou temps changé
+                    const newGroup =
+                        !prev ||
+                        current.measure !== prev.measure ||
+                        Math.floor(current.beat) !== Math.floor(prev.beat);
+
+                    if (!beamable || newGroup) {{
+                        if (group.length > 1) {{
+                            beams.push(new Vex.Flow.Beam(group));
+                        }}
+                        group = beamable ? [notes[i]] : [];
+                    }} else {{
+                        group.push(notes[i]);
+                    }}
+                }}
+
+                if (group.length > 1) {{
+                    beams.push(new Vex.Flow.Beam(group));
+                }}
+
+                return beams;
+            }}
+
+            function renderVexFlow(notesData, notesPerLine) {{
                 const div = document.getElementById("output");
                 const renderer = new Vex.Flow.Renderer(div, Vex.Flow.Renderer.Backends.SVG);
                 renderer.resize(1000, 300);
                 const ctx = renderer.getContext();
 
-                // Créer une portée
-                const stave = new Vex.Flow.Stave(10, 10, 700);
+                const stave = new Vex.Flow.Stave(10, 40, 900);
                 stave.addClef("bass").setContext(ctx).draw();
 
-                // Créer les notes
-                const notes = notesData.map(noteData => {{
+                // Créer les StaveNotes
+                const vexNotes = notesData.map(noteData => {{
                     const note = new Vex.Flow.StaveNote({{
                         keys: [noteData.pitch],
                         duration: noteData.duration
                     }});
 
-                    // Ajouter un dièse si nécessaire
                     if (noteData.pitch.includes('#')) {{
-                        const pitchParts = noteData.pitch.split('/');
-                        const noteName = pitchParts[0];
-                        if (noteName.includes('#')) {{
-                            const accidental = new Vex.Flow.Accidental('#');
-                            note.addAccidental(0, accidental);
-                        }}
+                        note.addAccidental(0, new Vex.Flow.Accidental('#'));
                     }}
-
                     return note;
                 }});
 
-                // Formater et dessiner les notes
-                Vex.Flow.Formatter.FormatAndDraw(ctx, stave, notes);
+                // Créer les beams
+                const beams = createBeams(vexNotes, notesData);
+
+                // Formatter et dessiner les notes
+                Vex.Flow.Formatter.FormatAndDraw(ctx, stave, vexNotes);
+
+                // Dessiner les beams par-dessus
+                beams.forEach(beam => {{
+                    beam.setContext(ctx).draw();
+                }});
             }}
 
-            const notesData = {notes};
-            renderVexFlow(notesData);
+            renderVexFlow({notes}, {notes_per_line});
         </script>
     </body>
     </html>
     """
-    st.components.v1.html(html, height=350)
+    st.components.v1.html(html, height=300)
+
 
 
 
