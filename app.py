@@ -1,5 +1,4 @@
 import streamlit as st
-import svgwrite
 import requests
 import base64
 import tempfile
