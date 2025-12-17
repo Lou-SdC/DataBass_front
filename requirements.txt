@@ -2,7 +2,3 @@ streamlit
 svgwrite
 music21
 audio
-requests
-base64
-tempfile
-hashlib
