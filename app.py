@@ -201,7 +201,7 @@ def parse_musicxml_with_music21(xml_content):
         # Extraire la lettre de la note (ex: 'D' ou 'D#')
         note_letter = pitch[:-1]
         # Extraire l'octave (ex: '2')
-        octave = str(int(pitch[-1]) + 3)
+        octave = str(int(pitch[-1]))
 
         # Convertir la lettre en minuscule et ajouter le slash (ex: 'd#/2')
         pitch_vexflow = f"{note_letter}/{octave}"
@@ -380,7 +380,8 @@ def vexflow_component(xml, notes_per_line=20):
                     const vexNotes = slice.map(noteData => {{
                         const note = new Vex.Flow.StaveNote({{
                             keys: [noteData.pitch],
-                            duration: noteData.duration
+                            duration: noteData.duration,
+                            clef: "bass"
                         }});
                         note.setStyle({{
                             fillStyle: neonAccent,
