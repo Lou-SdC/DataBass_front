@@ -616,7 +616,7 @@ footer.custom-footer {
     bottom: 12px;
     left: 50%;
     transform: translateX(-50%);
-    width: 92%;
+    width: 75%;
     padding: 12px 18px;
     font-size: 1rem;
     text-align: center;
