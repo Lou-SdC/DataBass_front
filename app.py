@@ -200,7 +200,7 @@ def parse_musicxml_with_music21(xml_content):
         # Extraire la lettre de la note (ex: 'D' ou 'D#')
         note_letter = pitch[:-1]
         # Extraire l'octave (ex: '2')
-        octave = str(int(pitch[-1]) + 2)
+        octave = str(int(pitch[-1]) + 3)
 
         # Convertir la lettre en minuscule et ajouter le slash (ex: 'd#/2')
         pitch_vexflow = f"{note_letter}/{octave}"
@@ -476,6 +476,8 @@ with main_col:
     if audio_file:
         file_bytes = audio_file.getvalue()
         signature = hashlib.md5(file_bytes).hexdigest()
+        st.audio(audio_file, format="audio/wav", start_time=0, sample_rate=None,
+                 end_time=None, loop=False, autoplay=False, width="stretch")
 
         if st.session_state.get("last_file_signature") != signature:
             loading_placeholder = st.empty()
