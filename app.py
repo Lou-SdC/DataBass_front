@@ -10,7 +10,8 @@ import xml.etree.ElementTree as ET
 import music21 as m21
 
 st.set_page_config(
-    page_title="Databass - Frequency Transcriber",
+    page_title="DataBass - Bass Line Transcriber",
+    page_icon="favicon.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -450,8 +451,8 @@ with main_col:
     st.markdown(
         """
         <div class="hero-section">
-            <h1>Databass — Frequency Analyser</h1>
-            <p>Upload a WAV bass line, let the AI transcribe it, and see the music sheet.</p>
+            <h1>DataBass — Bass Line Transcriber</h1>
+            <p>Upload a WAV bass line, let our AI model transcribe it, and see the music sheet.</p>
         </div>
         """,
         unsafe_allow_html=True,
