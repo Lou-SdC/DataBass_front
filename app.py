@@ -201,7 +201,7 @@ def parse_musicxml_with_music21(xml_content):
         # Extraire la lettre de la note (ex: 'D' ou 'D#')
         note_letter = pitch[:-1]
         # Extraire l'octave (ex: '2')
-        octave = str(int(pitch[-1]))
+        octave = str(int(pitch[-1]) + 1)
 
         # Convertir la lettre en minuscule et ajouter le slash (ex: 'd#/2')
         pitch_vexflow = f"{note_letter}/{octave}"
@@ -244,7 +244,7 @@ def prepare_vexflow_data(xml_content):
     for note in notes:
         quarter_length = note["quarterLength"]
 
-        # ignorer les durées trop courtes si tu veux
+        # ignorer les durées trop courtes
         if quarter_length < 0.125:
             continue
 
