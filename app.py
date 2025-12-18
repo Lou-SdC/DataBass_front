@@ -459,15 +459,6 @@ with main_col:
         unsafe_allow_html=True,
     )
 
-    # st.markdown(
-    #     """
-    #     <div class="upload-section">
-    #         <span class="upload-label">📡 Upload Audio File</span>
-    #         <div class="upload-hint">Drop your WAV file here or browse to select</div>
-    #     </div>
-    #     """,
-    #     unsafe_allow_html=True,
-    # )
     audio_file = st.file_uploader(
         "",
         type=["wav"],
@@ -600,6 +591,39 @@ with main_col:
                 })
             finally:
                 loading_placeholder.empty()
+        st.markdown("""
+            <style>
+            footer.custom-footer {
+                bottom: 0;
+                width: 100%;
+                padding: 12px 18px;
+                font-size: 1rem;
+                text-align: center;
+                color: #9AAAE0;
+                background: linear-gradient(135deg, rgba(18,32,64,0.88), rgba(9,16,38,0.92));
+                border-radius: 14px;
+                border: 1px solid rgba(125,249,255,0.25);
+                box-shadow: 0 10px 28px rgba(0,0,0,0.45),
+                            inset 0 0 14px rgba(0,224,255,0.12);
+            }
+            footer.custom-footer a {
+                color: #7DF9FF;
+                text-decoration: none;
+            }
+            footer.custom-footer a:hover {
+                text-decoration: underline;
+            }
+            </style>
+
+            <footer class="custom-footer">
+                2025 — <strong>DataBass</strong> · GitHub links :
+                <a href="https://github.com/Lou-SdC" target="_blank">Lou-SdC</a> -
+                <a href="https://github.com/Arkyed" target="_blank">Arkyed</a> -
+                <a href="https://github.com/Gridar" target="_blank">Gridar</a> -
+                <a href="https://github.com/junglist59" target="_blank">Junglist59</a>
+            </footer>
+        """, unsafe_allow_html=True)
+
     else:
         st.session_state.update({
             "last_file_signature": None,
@@ -608,42 +632,37 @@ with main_col:
             "vexflow_html": None,
             "transcription_error": None,
         })
-        ""
-st.markdown("""
-<style>
-footer.custom-footer {
-    position: fixed;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 75%;
-    padding: 12px 18px;
-    font-size: 1rem;
-    text-align: center;
-    color: #9AAAE0;
-    background: linear-gradient(135deg, rgba(18,32,64,0.88), rgba(9,16,38,0.92));
-    border-radius: 14px;
-    border: 1px solid rgba(125,249,255,0.25);
-    box-shadow: 0 10px 28px rgba(0,0,0,0.45),
-                inset 0 0 14px rgba(0,224,255,0.12);
-    z-index: 999;
-}
-footer.custom-footer a {
-    color: #7DF9FF;
-    text-decoration: none;
-}
-footer.custom-footer a:hover {
-    text-decoration: underline;
-}
-</style>
+        # place holer with 100% height
+        st.markdown("<div style='height: 60vh;'></div>", unsafe_allow_html=True)
+        st.markdown("""
+            <style>
+            footer.custom-footer {
+                bottom: 0;
+                width: 100%;
+                padding: 12px 18px;
+                font-size: 1rem;
+                text-align: center;
+                color: #9AAAE0;
+                background: linear-gradient(135deg, rgba(18,32,64,0.88), rgba(9,16,38,0.92));
+                border-radius: 14px;
+                border: 1px solid rgba(125,249,255,0.25);
+                box-shadow: 0 10px 28px rgba(0,0,0,0.45),
+                            inset 0 0 14px rgba(0,224,255,0.12);
+            }
+            footer.custom-footer a {
+                color: #7DF9FF;
+                text-decoration: none;
+            }
+            footer.custom-footer a:hover {
+                text-decoration: underline;
+            }
+            </style>
 
-<footer class="custom-footer">
-    2025 — <strong>DataBass</strong> · GitHub links :
-    <a href="https://github.com/Lou-SdC" target="_blank">Lou-SdC</a> -
-    <a href="https://github.com/Arkyed" target="_blank">Arkyed</a> -
-    <a href="https://github.com/Gridar" target="_blank">Gridar</a> -
-    <a href="https://github.com/junglist59" target="_blank">Junglist59</a>
-</footer>
-""", unsafe_allow_html=True)
-
-st.markdown("<div style='height: 90px;'></div>", unsafe_allow_html=True)
+            <footer class="custom-footer">
+                2025 — <strong>DataBass</strong> · GitHub links :
+                <a href="https://github.com/Lou-SdC" target="_blank">Lou-SdC</a> -
+                <a href="https://github.com/Arkyed" target="_blank">Arkyed</a> -
+                <a href="https://github.com/Gridar" target="_blank">Gridar</a> -
+                <a href="https://github.com/junglist59" target="_blank">Junglist59</a>
+            </footer>
+            """, unsafe_allow_html=True)
